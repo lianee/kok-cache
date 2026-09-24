@@ -1,0 +1,473 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>kok-cache</title>
+<link rel="icon" type="image/png" href="/favicon.ico">
+<style>
+  /* Palette reprise du site k-ok (indigo, or du logo) pour que le programme se reconnaisse
+     comme faisant partie du même ensemble. Thème clair et sombre selon le système. */
+  :root {
+    --bg: #f6f7fb; --card: #fff; --txt: #1a1d26; --muted: #6b7280;
+    --line: #e5e7eb; --accent: #4f46e5; --gold: #c9aa60; --ok: #16a34a; --warn: #b45309;
+    --shadow: 0 1px 2px rgba(16,24,40,.06), 0 4px 12px rgba(16,24,40,.05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1117; --card: #171a23; --txt: #e8eaf0; --muted: #9aa1b1;
+      --line: #262b38; --accent: #7c74f0; --gold: #d8bd7c; --ok: #35c46a; --warn: #e0a33c;
+      --shadow: none;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 2rem 1rem 3rem; background: var(--bg); color: var(--txt);
+    font: 15px/1.55 system-ui, -apple-system, "Segoe UI", Inter, sans-serif;
+  }
+  .wrap { max-width: 46rem; margin: 0 auto; }
+
+  header { display: flex; align-items: baseline; gap: .75rem; margin-bottom: 1.5rem; }
+  h1 { font-size: 1.5rem; margin: 0; letter-spacing: -.02em; }
+  h1 span { color: var(--gold); }
+  .version { color: var(--muted); font-size: .8rem; font-variant-numeric: tabular-nums; }
+  .state { margin-left: auto; display: flex; align-items: center; gap: .45rem; font-size: .9rem; }
+  .dot { width: .6rem; height: .6rem; border-radius: 50%; background: var(--muted); }
+  .dot.on { background: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 22%, transparent); }
+  .dot.off { background: var(--warn); }
+
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+    padding: 1.25rem; margin-bottom: 1rem; box-shadow: var(--shadow);
+  }
+  .card h2 { font-size: .8rem; text-transform: uppercase; letter-spacing: .08em;
+             color: var(--muted); margin: 0 0 .9rem; font-weight: 600; }
+
+  .figures { display: grid; grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr)); gap: 1rem; }
+  .fig .n { font-size: 1.8rem; font-weight: 650; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+  .fig .l { color: var(--muted); font-size: .82rem; }
+
+  .path { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; }
+  .path code {
+    flex: 1; min-width: 12rem; font-size: .85rem; background: var(--bg);
+    border: 1px solid var(--line); border-radius: 7px; padding: .5rem .65rem;
+    overflow-x: auto; white-space: nowrap;
+  }
+
+  button {
+    font: inherit; font-size: .9rem; padding: .5rem .95rem; border-radius: 8px;
+    border: 1px solid var(--line); background: var(--card); color: var(--txt); cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 550; }
+  button.primary:hover { filter: brightness(1.08); }
+  button.big { padding: .7rem 1.3rem; font-size: 1rem; }
+  button:disabled { opacity: .5; cursor: default; }
+
+  .opt { display: flex; gap: .7rem; align-items: flex-start; padding: .6rem 0; }
+  .opt + .opt { border-top: 1px solid var(--line); }
+  .opt input { margin-top: .28rem; width: 1.05rem; height: 1.05rem; accent-color: var(--accent); }
+  .opt .t { font-weight: 550; }
+  .opt .d { color: var(--muted); font-size: .85rem; }
+
+  .act { display: flex; align-items: center; gap: .7rem; padding: .5rem 0; font-size: .9rem; }
+  .act + .act { border-top: 1px solid var(--line); }
+  .arrow { font-weight: 700; width: 1.2rem; text-align: center; }
+  .arrow.up { color: var(--accent); }
+  .arrow.down { color: var(--gold); }
+  .bar { flex: 1; height: 6px; background: var(--bg); border: 1px solid var(--line);
+         border-radius: 99px; overflow: hidden; }
+  .bar i { display: block; height: 100%; background: var(--accent); }
+  .pct { color: var(--muted); font-variant-numeric: tabular-nums; width: 3rem; text-align: right; }
+
+  .notice { border-left: 3px solid var(--gold); padding: .7rem .9rem; background: var(--card);
+            border-radius: 0 8px 8px 0; margin-bottom: 1rem; font-size: .9rem; }
+  .err { border-left-color: #dc2626; }
+  .ok { border-left-color: #16a34a; }
+  .notice .actions { display: flex; gap: .7rem; align-items: center; margin-top: .6rem; flex-wrap: wrap; }
+  .notice a { color: var(--accent); }
+  .empty { color: var(--muted); font-size: .9rem; }
+  footer { display: flex; gap: .7rem; margin-top: 1.5rem; }
+  footer .sp { flex: 1; }
+  .hint { color: var(--muted); font-size: .85rem; margin-top: .8rem; }
+  /* Discret : c'est une sortie, pas une action qu'on met en avant. */
+  .linkish {
+    border: none; background: none; color: var(--muted); font-size: .82rem;
+    padding: 0 0 0 .1rem; text-decoration: underline; cursor: pointer;
+  }
+  .linkish:hover { color: var(--accent); border: none; }
+  .url { word-break: break-all; font-size: .8rem; color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>kok<span>-</span>cache</h1>
+    <span class="version" id="version"></span>
+    <span class="state">
+      <span class="dot" id="dot"></span><span id="stateTxt">…</span>
+      <button id="logoutBtn" class="linkish" hidden>Se déconnecter</button>
+    </span>
+  </header>
+
+  <div id="notice"></div>
+  <div id="update"></div>
+
+  <!-- Écran « pas encore connecté » -->
+  <div class="card" id="loginCard" hidden>
+    <h2>Connexion</h2>
+    <p style="margin:.2rem 0 .8rem">
+      Connectez votre compte k-ok pour que ce programme puisse rejoindre le partage
+      d'extraits entre joueurs.
+    </p>
+    <p style="margin:0 0 1rem; color:var(--muted); font-size:.9rem">
+      Votre navigateur va s'ouvrir <strong>sur le site k-ok</strong>, qui vous demandera
+      d'autoriser « kok-cache ». C'est normal, et c'est ce qui évite de confier votre mot de
+      passe à ce programme : il ne reçoit qu'une autorisation, révocable d'un clic ici même.
+      Elle lui sert uniquement à prouver que c'est bien votre compte — elle ne donne accès
+      ni à vos parties, ni à vos données personnelles.
+    </p>
+    <button class="primary big" id="loginBtn">Connecter mon compte k-ok</button>
+    <div class="hint" id="loginHint" hidden>
+      Votre navigateur devrait s'ouvrir. Sinon, ouvrez cette adresse :
+      <div class="url" id="loginUrl"></div>
+    </div>
+  </div>
+
+  <!-- Écran principal -->
+  <div id="main" hidden>
+    <div class="card">
+      <h2>Extraits en cache</h2>
+      <div class="figures">
+        <div class="fig"><div class="n" id="files">–</div><div class="l">extraits stockés</div></div>
+        <div class="fig"><div class="n" id="size">–</div><div class="l">sur le disque</div></div>
+        <div class="fig"><div class="n" id="catalog">–</div><div class="l">chansons au catalogue</div></div>
+        <div class="fig"><div class="n" id="pending">–</div><div class="l" id="pendingLabel">restant à récupérer</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Dossier</h2>
+      <div class="path">
+        <code id="dir">–</code>
+        <button id="dirBtn">Changer…</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Partage en cours</h2>
+      <div id="activity"><div class="empty">Rien en ce moment.</div></div>
+    </div>
+
+    <div class="card">
+      <h2>Options</h2>
+      <label class="opt">
+        <input type="checkbox" id="mirror">
+        <span>
+          <span class="t">Garder tout le catalogue</span>
+          <span class="d">Récupère les extraits même sans les avoir écoutés<span id="mirrorSize"></span>,
+          téléchargés petit à petit.</span>
+        </span>
+      </label>
+      <label class="opt">
+        <input type="checkbox" id="autostart">
+        <span>
+          <span class="t">Démarrer avec l'ordinateur</span>
+          <span class="d">kok-cache se lancera à l'ouverture de votre session. Vous pouvez
+          le désactiver ici à tout moment.</span>
+        </span>
+      </label>
+      <label class="opt" id="autoupdateOpt" hidden>
+        <input type="checkbox" id="autoupdate">
+        <span>
+          <span class="t">Mettre à jour automatiquement</span>
+          <span class="d">Quand une nouvelle version est publiée, kok-cache l'installe seul et
+          redémarre. Sinon, il se contente de vous la signaler ici.</span>
+        </span>
+      </label>
+    </div>
+
+    <footer>
+      <span class="sp"></span>
+      <button id="restartBtn" hidden>Redémarrer kok-cache</button>
+      <button id="quitBtn">Quitter kok-cache</button>
+    </footer>
+  </div>
+
+</div>
+
+<script>
+const TOKEN = "__KOK_TOKEN__";
+const nf = new Intl.NumberFormat("fr-FR");
+const STEMS = { vocals: "voix", accompaniment: "accompagnement" };
+let restartNeeded = false;
+// updating : une mise à jour est en cours, kok-cache va s'arrêter puis revenir sous une nouvelle
+// version. Une perte de contact n'est alors PAS une panne : on recharge la page.
+let updating = false;
+let reloading = false;
+
+async function api(path, body) {
+  const r = await fetch(path, {
+    method: body === undefined ? "GET" : "POST",
+    headers: { "X-KOK-Token": TOKEN, "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
+function go(n) {
+  const g = n / (1024 ** 3);
+  if (g >= 1) return g.toFixed(1).replace(".", ",") + " Go";
+  return Math.round(n / (1024 ** 2)) + " Mo";
+}
+
+function renderActivity(list) {
+  const box = document.getElementById("activity");
+  if (!list || !list.length) {
+    box.innerHTML = '<div class="empty">Rien en ce moment.</div>';
+    return;
+  }
+  // ⚠️ Cet innerHTML n'est sûr QUE grâce à ce qu'il interpole : `a.songId` est un nombre, et
+  // `a.stem` vaut forcément « accompaniment » ou « vocals » (store.ValidStem garde les deux
+  // entrées réseau). `a.peer` — le champ réellement contrôlé par un tiers — n'est délibérément PAS
+  // affiché.
+  // ⛔ N'AJOUTEZ RIEN ICI SANS ÉCHAPPER. Le projet a justement noté l'idée d'afficher le TITRE de
+  // la chanson au lieu de « chanson 55 » : ces titres viendraient du serveur, donc du réseau, et
+  // les coller ici transformerait cette ligne en XSS sur la page qui détient le secret de
+  // l'interface. Passer alors par createElement + textContent, comme renderNotice.
+  box.innerHTML = list.map(a => {
+    const up = a.direction === "envoi";
+    const pct = a.total > 0 ? Math.min(100, Math.round(a.bytes * 100 / a.total)) : 0;
+    const stem = STEMS[a.stem] || a.stem;
+    return `<div class="act">
+      <span class="arrow ${up ? "up" : "down"}">${up ? "↑" : "↓"}</span>
+      <span>${up ? "Envoi" : "Réception"} · chanson ${a.songId} · ${stem}</span>
+      <span class="bar"><i style="width:${pct}%"></i></span>
+      <span class="pct">${pct} %</span>
+    </div>`;
+  }).join("");
+}
+
+function renderNotice(s) {
+  const box = document.getElementById("notice");
+  // authErr en premier : c'est le seul cas où le programme tourne sans rien faire, et il doit le
+  // dire — un abonnement expiré ne ressemble à rien d'autre qu'à une panne, sinon.
+  const msg = s.authErr || s.loginErr || s.notice;
+  if (!msg) { box.replaceChildren(); return; }
+  // ⛔ textContent, JAMAIS innerHTML — audit du 2026-08-30.
+  // `authErr` remonte d'une réponse du serveur : api.go fait
+  // `fmt.Errorf("rt-ticket refusé : %s", out.Error)` où `out.Error` est le champ `error` du JSON
+  // renvoyé par kok.php. Une chaîne venue du réseau atterrissait donc en HTML sur CETTE page —
+  // celle qui détient le secret de l'interface et peut appeler /api/quit, /api/restart et
+  // /api/dir. La CSP n'y peut rien : `script-src 'unsafe-inline'` est indispensable ici.
+  // Le serveur est le nôtre, donc rien n'était exploitable ; mais faire confiance au réseau pour
+  // fournir du HTML sûr est exactement ce que le reste du projet refuse de faire.
+  const div = document.createElement("div");
+  div.className = "notice" + (s.loginErr || s.authErr ? " err" : "");
+  div.textContent = msg;
+  box.replaceChildren(div);
+  if (s.notice && s.notice.toLowerCase().includes("redémarr")) restartNeeded = true;
+  document.getElementById("restartBtn").hidden = !restartNeeded;
+}
+
+// renderUpdate affiche l'état de la mise à jour, à part des autres messages : ils coexistent.
+// Les versions viennent d'un manifeste signé ou de nos propres arguments, mais la règle reste la
+// même qu'ailleurs : textContent, jamais innerHTML, pour tout ce qui n'est pas écrit ici.
+function renderUpdate(u) {
+  const box = document.getElementById("update");
+  const opt = document.getElementById("autoupdateOpt");
+  if (!u || !u.enabled) { box.replaceChildren(); opt.hidden = true; return; }
+  opt.hidden = false;
+  document.getElementById("autoupdate").checked = u.auto;
+  updating = u.updating;
+
+  const div = document.createElement("div");
+  const p = document.createElement("p");
+  p.style.margin = "0";
+  if (u.updating) {
+    div.className = "notice";
+    p.textContent = "Mise à jour en cours" + (u.available ? " vers la version " + u.available : "") +
+      ". kok-cache va redémarrer, cette page se rechargera d'elle-même.";
+    div.append(p);
+  } else if (u.available) {
+    div.className = "notice" + (u.required ? " err" : "");
+    p.textContent = u.required
+      ? "La version " + u.available + " est requise : celle-ci ne fonctionnera bientôt plus."
+      : "La version " + u.available + " est disponible.";
+    div.append(p);
+    if (u.err) {
+      const e = document.createElement("p");
+      e.style.margin = ".4rem 0 0";
+      e.textContent = "Dernier essai refusé : " + u.err;
+      div.append(e);
+    }
+    const actions = document.createElement("div");
+    actions.className = "actions";
+    const btn = document.createElement("button");
+    btn.textContent = "Mettre à jour maintenant";
+    btn.onclick = async () => {
+      btn.disabled = true;
+      try { await api("/api/update", {}); } catch (e) { btn.disabled = false; throw e; }
+    };
+    const a = document.createElement("a");
+    a.href = u.releaseUrl; a.target = "_blank"; a.rel = "noopener";
+    a.textContent = "ou téléchargez-la vous-même";
+    actions.append(btn, a);
+    div.append(actions);
+  } else if (u.updatedFrom) {
+    div.className = "notice ok";
+    p.textContent = "kok-cache a été mis à jour : " + u.updatedFrom + " → " +
+      document.getElementById("version").textContent + ". Rien à faire de votre côté.";
+    div.append(p);
+  } else {
+    box.replaceChildren();
+    return;
+  }
+  // Pas de re-rendu si rien n'a changé : le bouton perdrait son état et le focus.
+  if (box.firstChild && box.firstChild.outerHTML === div.outerHTML) return;
+  box.replaceChildren(div);
+}
+
+// ⛔ Ne JAMAIS avaler l'erreur en silence. Une version antérieure faisait `catch { return; }` :
+// quand l'appel échouait, les deux écrans restaient cachés et il ne subsistait que l'en-tête —
+// une page morte, sans un mot d'explication. C'est le pire des états : l'utilisateur ne peut ni
+// comprendre, ni agir.
+function showFatal(html) {
+  document.getElementById("notice").innerHTML = `<div class="notice err">${html}</div>`;
+}
+
+// ⚠️ Réassigner un textContent IDENTIQUE détruit et recrée le nœud texte — donc la sélection en
+// cours. Avec un rafraîchissement toutes les 1,5 s, copier un chemin devenait une course contre la
+// montre. On n'écrit donc que ce qui a réellement changé.
+function setText(id, v) {
+  const el = document.getElementById(id);
+  if (el && el.textContent !== v) el.textContent = v;
+}
+// (`setHTML`, qui posait de l'innerHTML, a été SUPPRIMÉ le 2026-08-30 : il n'était appelé nulle
+// part. Du code mort qui écrit du HTML brut finit toujours par être réemployé sans réfléchir.)
+// Même raison : tant qu'une sélection est active, on ne touche à rien. C'est le seul moment où
+// l'utilisateur a besoin que la page tienne en place.
+function hasSelection() {
+  const sel = window.getSelection();
+  return sel && !sel.isCollapsed && String(sel).trim() !== "";
+}
+
+async function refresh() {
+  if (hasSelection()) return;
+  let s;
+  try {
+    s = await api("/api/state");
+  } catch (e) {
+    if (updating) {
+      if (reloading) return; // le sondage tourne toutes les 1,5 s : une seule boucle de relance
+      reloading = true;
+      // Le prédécesseur s'est arrêté, le successeur reprend le même port dans les secondes qui
+      // suivent : on recharge, et on réessaie tant qu'il n'est pas là.
+      showFatal("kok-cache redémarre sous sa nouvelle version, cette page se recharge…");
+      // Recharger à l'aveugle tomberait sur la page d'erreur du navigateur si le successeur n'est
+      // pas encore là : on sonde d'abord, puis on recharge. Si la mise à jour est annulée, c'est
+      // l'ancienne version qui répond, et sa page dira pourquoi.
+      const retry = async () => {
+        try { await fetch("/", { cache: "no-store" }); location.reload(); }
+        catch { setTimeout(retry, 1500); }
+      };
+      setTimeout(retry, 2000);
+      return;
+    }
+    const stale = String(e.message || "").includes("jeton");
+    showFatal(stale
+      ? "Cette page vient d'une session précédente de kok-cache. " +
+        "<a href='#' onclick='location.reload();return false'>Rechargez-la</a> pour la réactiver."
+      : "kok-cache ne répond pas. Il est peut-être arrêté — relancez-le, puis rechargez cette page.");
+    document.getElementById("loginCard").hidden = true;
+    document.getElementById("main").hidden = true;
+    return;
+  }
+
+  setText("version", s.version);
+  const dot = document.getElementById("dot");
+  if (!s.loggedIn)      { dot.className = "dot";     setText("stateTxt", "compte non connecté"); }
+  else if (s.connected) { dot.className = "dot on";  setText("stateTxt", s.account || "en ligne"); }
+  else                  { dot.className = "dot off"; setText("stateTxt", "hors ligne"); }
+
+  document.getElementById("logoutBtn").hidden = !s.loggedIn;
+  document.getElementById("loginCard").hidden = s.loggedIn;
+  document.getElementById("main").hidden = !s.loggedIn;
+  document.getElementById("loginBtn").disabled = s.loginBusy;
+  document.getElementById("loginHint").hidden = !s.loginBusy;
+  setText("loginUrl", s.loginUrl || "");
+
+  setText("files", nf.format(s.files));
+  setText("size", go(s.bytes));
+  setText("catalog", s.catalog ? nf.format(s.catalog) : "–");
+  // Pendant une vérification (dossier copié à la main, empreintes inconnues), le chiffre n'a pas
+  // encore de sens : on montre la PROGRESSION plutôt qu'un « – » muet ou un total faux.
+  if (s.scanning && s.toVerify) {
+    setText("pending", "…");
+    setText("pendingLabel", `vérification : ${nf.format(s.toVerify)} fichier${s.toVerify > 1 ? "s" : ""} à relire`);
+  } else if (!s.scanned && s.catalog) {
+    setText("pending", "…");
+    setText("pendingLabel", "vérification en cours");
+  } else {
+    setText("pending", s.catalog ? nf.format(s.pending) : "–");
+    setText("pendingLabel", "restant à récupérer");
+  }
+  setText("dir", s.dir);
+  document.getElementById("mirror").checked = s.mirror;
+  // Volume ESTIMÉ, jamais écrit en dur : le catalogue grossit, et corriger une phrase ne doit pas
+  // obliger à republier un binaire chez tout le monde.
+  setText("mirrorSize", s.catalogBytes ? ` — comptez environ ${go(s.catalogBytes)}` : "");
+  document.getElementById("autostart").checked = s.autostart;
+
+  renderActivity(s.activity);
+  renderNotice(s);
+  renderUpdate(s.update);
+}
+
+document.getElementById("loginBtn").onclick = async () => {
+  await api("/api/login", {}); refresh();
+};
+document.getElementById("logoutBtn").onclick = async () => {
+  await api("/api/logout", {}); refresh();
+};
+document.getElementById("dirBtn").onclick = async (e) => {
+  e.target.disabled = true;
+  try { await api("/api/dir", {}); } finally { e.target.disabled = false; refresh(); }
+};
+document.getElementById("mirror").onchange = async (e) => {
+  await api("/api/mirror", { on: e.target.checked }); refresh();
+};
+document.getElementById("autostart").onchange = async (e) => {
+  await api("/api/autostart", { on: e.target.checked }); refresh();
+};
+document.getElementById("autoupdate").onchange = async (e) => {
+  await api("/api/autoupdate", { on: e.target.checked }); refresh();
+};
+document.getElementById("restartBtn").onclick = async () => {
+  await api("/api/restart", {});
+  // L'adresse est fixe et le secret survit au redémarrage : un simple rechargement suffit, et on
+  // le fait nous-mêmes. (L'ancien message annonçait une fermeture de page et une « nouvelle
+  // fenêtre » qui n'existaient ni l'une ni l'autre.)
+  document.body.innerHTML =
+    '<div class="wrap"><div class="card">kok-cache redémarre — cette page se recharge dans ' +
+    'quelques secondes.</div></div>';
+  setTimeout(() => location.reload(), 4000);
+};
+document.getElementById("quitBtn").onclick = async () => {
+  // Message conditionnel : promettre le retour du partage à quelqu'un qui vient de se déconnecter
+  // serait faux — au prochain lancement, il devra d'abord se reconnecter.
+  const connected = !document.getElementById("main").hidden;
+  await api("/api/quit", {});
+  document.body.innerHTML =
+    '<div class="wrap"><div class="card">kok-cache est arrêté.' +
+    (connected ? " Le partage et le cache reprendront à son prochain lancement." : "") +
+    '</div></div>';
+};
+
+refresh();
+setInterval(refresh, 1500);
+</script>
+</body>
+</html>

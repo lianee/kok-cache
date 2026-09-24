@@ -1,0 +1,9 @@
+dist/
+*.exe
+
+# ⛔ Rien de secret ne doit JAMAIS être committé : le dépôt a vocation à devenir public, et un
+# `git rm` n'efface pas ce qui est déjà dans l'historique.
+token.json
+config.json
+*.key
+*.pem

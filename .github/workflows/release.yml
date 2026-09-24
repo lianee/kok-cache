@@ -1,0 +1,154 @@
+# Construit et publie une release de kok-cache, avec attestation de provenance.
+#
+# ────────────────────────────────────────────────────────────────────────────────────────────────
+# Ce workflow n'est pas une commodité : c'est LA pièce qui rend le binaire vérifiable.
+#
+# Publier les sources ne suffit pas — les gens téléchargent un zip. Ce qui ferme l'écart, c'est
+# qu'un tiers puisse (1) constater que l'artefact a été bâti par ce workflow, depuis ce dépôt, à ce
+# commit — l'attestation de provenance ; et (2) le RECONSTRUIRE lui-même et retrouver la même
+# empreinte — les builds reproductibles.
+#
+# ⚠️⚠️ LE PIÈGE CENTRAL : LA CHAÎNE DE VERSION EST UNE ENTRÉE DU BUILD.
+# `scripts/build.sh` injecte `-X main.version=$(git describe --tags --always --dirty)`. Le binaire
+# CHANGE si cette chaîne change. Deux conséquences, toutes deux respectées ci-dessous :
+#
+#   · `fetch-depth: 0` est OBLIGATOIRE. Le checkout par défaut est superficiel et ne ramène pas
+#     l'objet du tag : `git describe` renverrait alors un hash court au lieu de `v1.0.0`, et
+#     l'artefact publié ne correspondrait à AUCUNE reconstruction par un tiers. Panne parfaitement
+#     silencieuse : le build réussit, l'attestation est valide, et seule la comparaison d'empreintes
+#     échoue — chez l'utilisateur, des mois plus tard.
+#   · ⛔ NE PAS définir `KOK_CACHE_VERSION`. Il faut laisser `build.sh` dériver la version
+#     exactement comme le fera le tiers qui tape `git checkout v1.0.0 && ./scripts/build.sh`.
+#     Forcer la variable ici produirait un binaire que personne ne peut reproduire.
+#
+# La version de Go est lue dans `go.mod` (`go-version-file`), qui l'épingle : une version
+# différente produit un binaire différent, donc elle fait partie de l'entrée du build.
+# ────────────────────────────────────────────────────────────────────────────────────────────────
+
+name: release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:      # permet un essai à blanc sans poser de tag
+
+permissions:
+  contents: write         # créer la release et y téléverser les artefacts
+  id-token: write         # exigé par l'attestation de provenance (OIDC)
+  attestations: write     # écrire l'attestation
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      # ⚠️ fetch-depth: 0 — voir le bloc d'en-tête. Ne pas « optimiser » en superficiel.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          check-latest: false     # la version épinglée, pas la plus récente
+
+      - name: Version de Go réellement utilisée
+        run: |
+          echo "go.mod épingle : $(awk '/^go /{print $2}' go.mod)"
+          go version
+          echo "git describe    : $(git describe --tags --always --dirty)"
+
+      # Les tests passent AVANT de publier quoi que ce soit. `-race` inclus : le harnais monte un
+      # faux serveur de signalisation et fait transiter un vrai fichier entre deux instances, ce
+      # qui est précisément le genre de code où une course se cache.
+      - name: Tests
+        run: go test -race -count=1 ./...
+
+      # ⚠️ La version est fixée AU TAG, explicitement, et surtout pas laissée à `git describe`.
+      # Raison mesurée au banc : quand deux tags pointent sur le même commit — le cas normal d'une
+      # pré-version promue en version finale — `git describe` en choisit un, et c'est la
+      # pré-version qui gagne. On publierait une release « v1.0.0 » dont le binaire s'annonce
+      # « v0.9.0-rc1 ».
+      # ⛔ Et il ne suffit PAS que la CI lise le tag de son côté : le tiers qui reconstruit
+      # obtiendrait, lui, ce que dit `git describe` chez lui — donc une autre empreinte, et la
+      # reproductibilité tomberait. C'est pourquoi la recette publiée dans les notes de version
+      # demande la MÊME variable. Les deux côtés fixent la version ; personne ne la devine.
+      - name: Version de la release
+        run: echo "KOK_CACHE_VERSION=${{ github.ref_name }}" >> "$GITHUB_ENV"
+        if: startsWith(github.ref, 'refs/tags/')
+
+      - name: Build
+        run: ./scripts/build.sh
+
+      # Preuve continue de la reproductibilité, plutôt qu'une affirmation dans TECHNIQUE.md : on
+      # rebâtit et on compare les empreintes. Si un jour une dépendance ou un réglage casse la
+      # propriété, on l'apprend ici et pas par un utilisateur qui n'arrive pas à vérifier.
+      - name: Vérifier que le build est reproductible
+        run: |
+          cp dist/SHA256SUMS /tmp/sums-1.txt
+          ./scripts/build.sh >/dev/null
+          if diff -u /tmp/sums-1.txt dist/SHA256SUMS; then
+            echo "✅ deux builds successifs, empreintes identiques"
+          else
+            echo "❌ BUILD NON REPRODUCTIBLE — publication interrompue"
+            exit 1
+          fi
+
+      - name: Empreintes
+        run: cat dist/SHA256SUMS
+
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            dist/kok-cache-*
+
+      # `gh` est fourni par le runner : pas de dépendance à une action tierce pour cette étape.
+      # Sur un projet dont l'argument est la vérifiabilité, chaque action tierce ajoutée est une
+      # chose de plus à faire confiance.
+      - name: Créer la release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "Essai à blanc : artefacts bâtis et attestés, aucune release créée."
+            exit 0
+          fi
+          {
+            echo "## Vérifier ce que vous téléchargez"
+            echo
+            echo '```sh'
+            echo "gh attestation verify <fichier> --repo ${{ github.repository }}"
+            echo '```'
+            echo
+            echo "Ou reconstruisez l'artefact vous-même et comparez :"
+            echo
+            echo '```sh'
+            echo "git clone https://github.com/${{ github.repository }}.git && cd kok-cache"
+            echo "git checkout $TAG"
+            echo "KOK_CACHE_VERSION=$TAG ./scripts/build.sh"
+            echo "sha256sum -c dist/SHA256SUMS"
+            echo '```'
+            echo
+            echo "\`KOK_CACHE_VERSION\` n'est pas une commodité : la version est inscrite DANS le"
+            echo "binaire, elle fait donc partie de l'entrée du build. La CI l'a fixée à \`$TAG\` ;"
+            echo "il faut fixer la même pour retrouver la même empreinte."
+            echo
+            echo "La version de Go épinglée dans \`go.mod\` en fait aussi partie ;"
+            echo "\`scripts/build.sh\` vous prévient si la vôtre diffère."
+            echo
+            echo "### Empreintes SHA-256"
+            echo
+            echo '```'
+            cat dist/SHA256SUMS
+            echo '```'
+          } > /tmp/notes.md
+          # Un tag suffixé (v1.0.0-rc1) est marqué pré-version : il n'apparaît pas comme « latest »,
+          # donc les liens de téléchargement du site continuent de pointer sur la dernière version
+          # stable. C'est ce qui permet de RÉPÉTER une publication sans exposer un essai.
+          PRERELEASE=""
+          case "$TAG" in *-*) PRERELEASE="--prerelease" ;; esac
+          gh release create "$TAG" \
+            --title "$TAG" \
+            --notes-file /tmp/notes.md \
+            $PRERELEASE \
+            dist/kok-cache-* dist/SHA256SUMS
