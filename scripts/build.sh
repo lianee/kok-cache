@@ -105,8 +105,14 @@ PLIST
     # ⚠️ REPRODUCTIBILITÉ : un zip enregistre la date de chaque fichier. Sans horodatage fixe,
     # deux builds de la même source donneraient des archives différentes — et l'argument
     # « reconstruisez et comparez le SHA-256 » tomberait pour macOS.
+    # Idem pour les droits (ils suivent l'umask : 022 en CI, 002 sur un poste Ubuntu) et pour
+    # l'ordre des entrées (celui du disque, pas de la source) : modes fixés, liste triée.
     find "$app" -exec touch -t 200001010000 {} +
-    ( cd dist && zip -qry -X "kok-cache-${MACLABEL}.app.zip" "kok-cache-${MACLABEL}.app" )
+    find "$app" -type d -exec chmod 755 {} +
+    find "$app" -type f -exec chmod 644 {} +
+    chmod 755 "$app/Contents/MacOS/kok-cache" "$app/Contents/MacOS/kok-cache-bin"
+    ( cd dist && find "kok-cache-${MACLABEL}.app" | LC_ALL=C sort \
+        | zip -qy -X "kok-cache-${MACLABEL}.app.zip" -@ )
     rm -rf "$app"
   fi
 done
