@@ -71,6 +71,9 @@ lui aviez confié. Il ne reste alors qu'un petit dossier de réglages, que vous 
 Ce ne sont pas des promesses en l'air : chacune est une propriété du code, vérifiable et testée.
 Le détail, pour qui veut le lire, est dans la [page technique](TECHNIQUE.md).
 
+Ce qu'il envoie hors de votre ordinateur, et à qui, est détaillé dans la
+[page confidentialité](PRIVACY.md).
+
 ## Pour aller plus loin
 
 La [page technique](TECHNIQUE.md) couvre le reste : l'utilisation en ligne de commande, les réglages,
@@ -79,3 +82,5 @@ comment vérifier que le fichier téléchargé est bien celui qui a été publi�
 ## Licence
 
 [MIT](LICENSE), © 2026 Liane.
+
+Signature du programme pour Windows : [politique de signature](CODE_SIGNING.md) (en anglais).
