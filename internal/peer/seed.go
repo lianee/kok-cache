@@ -87,7 +87,7 @@ func (m *Manager) onGet(msg wireMsg, myID string) {
 	m.seeding[key] = s
 	m.mu.Unlock()
 
-	pc, err := webrtc.NewPeerConnection(m.iceConfig())
+	pc, err := m.api.NewPeerConnection(m.iceConfig())
 	if err != nil {
 		m.log.Warn("PeerConnection impossible", "err", err)
 		s.close("création impossible")

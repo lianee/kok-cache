@@ -223,6 +223,10 @@ func newNode(t *testing.T, ctx context.Context, rt *fakeRT, name string, oracle 
 	// Pas de STUN : les deux pairs sont sur la même machine et le test ne doit dépendre d'aucun
 	// service extérieur.
 	mgr.ice = []webrtc.ICEServer{}
+	// Comme en production : toutes les connexions de ce nœud passent par le port partagé.
+	if err := mgr.ListenUDP(0); err != nil {
+		t.Fatal(err)
+	}
 
 	sig := signal.New(rt.url(), name, fakeTickets{}, mgr, 200*time.Millisecond, log)
 	mgr.Attach(sig)

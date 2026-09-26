@@ -134,6 +134,25 @@ Pour un banc d'essai, `KOK_CACHE_UPDATE_URL` (variable d'environnement, jamais `
 désigne un autre serveur. Sans la clé privée, ce serveur ne peut rien faire installer : c'est ce
 qui permet de laisser cette variable exister.
 
+## Pare-feu Windows
+
+La page de contrôle et la connexion au compte n'écoutent que sur `127.0.0.1`. Les échanges avec
+les autres joueurs, en revanche, passent par WebRTC, qui a besoin de ports UDP sur la carte
+réseau. kok-cache les ouvre dès le démarrage, partagés par toutes les connexions : le pare-feu
+Windows Defender pose donc sa question au lancement. Les ouvrir à la demande la faisait surgir au
+premier échange direct, n'importe quand, et elle était presque toujours fermée sans être lue.
+
+Fermer cette fenêtre (Échap, « Annuler ») crée des règles qui bloquent les connexions ENTRANTES.
+kok-cache continue de fonctionner, mais les pairs qui veulent le joindre, y compris vos autres
+ordinateurs sur le même réseau, passent alors par le relais du serveur au lieu d'une liaison
+directe. Pour rattraper : Sécurité Windows → Pare-feu et protection du réseau → « Autoriser une
+application via le pare-feu » → « Modifier les paramètres », puis cochez kok-cache pour le profil
+de votre réseau (Privé, ou Public si Windows l'a classé ainsi : Paramètres → Réseau et Internet →
+propriétés de la connexion → Type de profil réseau).
+
+Les règles du pare-feu suivent le chemin du programme, et une mise à jour remplace le fichier au
+même endroit : la question ne devrait donc pas revenir à chaque version.
+
 ## Vérifier le binaire que vous avez téléchargé
 
 Les *releases* sont construites par une CI publique, avec une attestation de provenance, et les

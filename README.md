@@ -30,6 +30,12 @@ Rien à installer, aucune fenêtre noire, rien à laisser ouvert. Le programme d
 Il se peut que votre ordinateur vous demande confirmation la première fois, parce que le programme
 ne vient pas d'une boutique d'applications. Sur Windows, cliquez « Informations complémentaires »
 puis « Exécuter quand même ». Sur Mac, faites un clic droit sur l'application puis « Ouvrir ».
+Sur Linux, faites un clic droit sur le fichier, « Propriétés », puis activez « Autoriser
+l'exécution du fichier comme un programme ».
+
+Sur Windows, une seconde question suit aussitôt : le pare-feu demande si kok-cache peut accéder
+au réseau, pour partager avec les autres joueurs. Cliquez sur « Autoriser l'accès ». Si vous avez fermé cette fenêtre sans répondre, la
+[page technique](TECHNIQUE.md#pare-feu-windows) explique comment rattraper.
 
 ### 3. Suivez la page qui s'ouvre
 

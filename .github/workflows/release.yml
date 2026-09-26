@@ -114,6 +114,10 @@ jobs:
             exit 0
           fi
           {
+            # Exigé par la SignPath Foundation : la page de téléchargement doit le mentionner.
+            echo "Free code signing provided by [SignPath.io](https://signpath.io), certificate by"
+            echo "[SignPath Foundation](https://signpath.org). Voir la [politique de signature](https://github.com/${{ github.repository }}/blob/public/CODE_SIGNING.md)."
+            echo
             echo "## Vérifier ce que vous téléchargez"
             echo
             echo '```sh'

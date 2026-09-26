@@ -409,6 +409,14 @@ func doRun(ctx context.Context, cfg *config.Config, tok *config.Token, authMgr *
 	apiClient := api.New(config.APIURL(), config.Referer(), authMgr)
 
 	pm := peer.NewManager(ctx, st, nil, log)
+	// Port UDP ouvert tout de suite, pour que le pare-feu Windows pose sa question maintenant et
+	// pas au premier échange (cf. peer.ListenUDP). En cas d'échec, chaque connexion ouvre ses
+	// propres sockets comme avant : le partage marche, seule la question arrive plus tard.
+	if err := pm.ListenUDP(0); err != nil {
+		log.Error("port UDP partagé indisponible, sockets par connexion", "err", err)
+	} else {
+		log.Info("port UDP partagé ouvert", "adresses", len(pm.UDPAddrs()))
+	}
 	mir := mirror.New(apiClient, st, pm, mustConfigDir(),
 		time.Duration(cfg.MirrorIntervalMinutes)*time.Minute, cfg.Mirror, log)
 	pm.SetOracle(mir)

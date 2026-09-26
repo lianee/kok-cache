@@ -23,10 +23,12 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"net"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/pion/ice/v4"
 	"github.com/pion/webrtc/v4"
 
 	"github.com/lianee/kok-cache/internal/signal"
@@ -151,6 +153,11 @@ type Manager struct {
 	iceMu sync.RWMutex
 	ice   []webrtc.ICEServer
 
+	// api crée toutes les connexions WebRTC. Par défaut chaque connexion ouvre ses propres sockets ;
+	// après ListenUDP, elles partagent le port ouvert au démarrage (udpMux).
+	api    *webrtc.API
+	udpMux *ice.MultiUDPMuxDefault
+
 	mu       sync.Mutex
 	seeding  map[string]*seedSession  // clé "<peerId>-<songId>-<stem>"
 	leeching map[string]*leechSession // clé "<songId>-<stem>"
@@ -169,10 +176,42 @@ func NewManager(ctx context.Context, st *store.Store, oracle Oracle, log *slog.L
 		leeching: make(map[string]*leechSession),
 		inboxes:  make(map[string]chan wireMsg),
 		ctx:      ctx,
+		api:      webrtc.NewAPI(),
 		ice: []webrtc.ICEServer{
 			{URLs: []string{"stun:stun.l.google.com:19302"}},
 		},
 	}
+}
+
+// ListenUDP ouvre, dès le démarrage, le port UDP que partageront toutes les connexions WebRTC
+// (port 0 : choisi par le système). À appeler avant la signalisation.
+//
+// Sans lui, pion ouvre ses sockets à chaque connexion, et le pare-feu Windows pose sa question au
+// premier échange direct : n'importe quand, sans lien avec une action de l'utilisateur, donc
+// presque toujours fermée d'un Échap, ce qui bloque les connexions entrantes (vu le 2026-09-26).
+// Ouvert au démarrage, la question suit le double-clic, là où le mode d'emploi l'annonce.
+func (m *Manager) ListenUDP(port int) error {
+	mux, err := ice.NewMultiUDPMuxFromPort(port)
+	if err != nil {
+		return err
+	}
+	se := webrtc.SettingEngine{}
+	se.SetICEUDPMux(mux)
+	m.udpMux = mux
+	m.api = webrtc.NewAPI(webrtc.WithSettingEngine(se))
+	go func() {
+		<-m.ctx.Done()
+		_ = mux.Close()
+	}()
+	return nil
+}
+
+// UDPAddrs rend les adresses du port partagé (vide sans ListenUDP).
+func (m *Manager) UDPAddrs() []net.Addr {
+	if m.udpMux == nil {
+		return nil
+	}
+	return m.udpMux.GetListenAddresses()
 }
 
 // Attach relie le manager au client de signalisation. Séparé du constructeur parce que les deux

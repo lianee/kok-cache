@@ -146,7 +146,7 @@ func (m *Manager) onResp(msg wireMsg, myID string) {
 	l.size = msg.Size
 	l.mu.Unlock()
 
-	pc, err := webrtc.NewPeerConnection(m.iceConfig())
+	pc, err := m.api.NewPeerConnection(m.iceConfig())
 	if err != nil {
 		l.finish(err)
 		return
