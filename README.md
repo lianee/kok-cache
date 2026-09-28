@@ -28,8 +28,16 @@ Sur Mac, ouvrez le `.zip` : il contient l'application, que vous pouvez glisser o
 Rien à installer, aucune fenêtre noire, rien à laisser ouvert. Le programme démarre, discret.
 
 Il se peut que votre ordinateur vous demande confirmation la première fois, parce que le programme
-ne vient pas d'une boutique d'applications. Sur Windows, cliquez « Informations complémentaires »
-puis « Exécuter quand même ». Sur Mac, faites un clic droit sur l'application puis « Ouvrir ».
+ne vient pas d'une boutique d'applications.
+
+Sur Windows, le message n'est pas rassurant : une fenêtre bleue annonce « Windows a protégé votre
+ordinateur » et l'éditeur est « inconnu ». Ce n'est pas un virus détecté. Windows affiche ce
+message pour tout programme qui n'a pas acheté de signature Microsoft, et kok-cache n'en a pas
+(pourquoi, et comment vérifier le fichier autrement : [page technique](TECHNIQUE.md#avertissement-windows-au-premier-lancement)).
+Cliquez « Informations complémentaires » puis « Exécuter quand même ». Windows ne reposera pas la
+question.
+
+Sur Mac, faites un clic droit sur l'application puis « Ouvrir ».
 Sur Linux, faites un clic droit sur le fichier, « Propriétés », puis activez « Autoriser
 l'exécution du fichier comme un programme ».
 
@@ -88,5 +96,3 @@ comment vérifier que le fichier téléchargé est bien celui qui a été publi�
 ## Licence
 
 [MIT](LICENSE), © 2026 Liane.
-
-Signature du programme pour Windows : [politique de signature](CODE_SIGNING.md) (en anglais).

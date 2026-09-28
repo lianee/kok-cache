@@ -153,6 +153,18 @@ propriétés de la connexion → Type de profil réseau).
 Les règles du pare-feu suivent le chemin du programme, et une mise à jour remplace le fichier au
 même endroit : la question ne devrait donc pas revenir à chaque version.
 
+## Avertissement Windows au premier lancement
+
+Au premier double-clic, Windows SmartScreen affiche « Windows a protégé votre ordinateur »,
+éditeur inconnu. Le binaire Windows n'a pas de signature Authenticode : les certificats reconnus
+sont payants, et même signé, un programme reste signalé tant qu'il n'a pas été téléchargé par
+assez de monde. Pour un projet de cette taille, le coût ne change rien au message.
+
+L'avertissement ne dit rien du contenu du fichier. Ce qui garantit que l'exécutable est bien celui
+construit à partir de ce dépôt, c'est l'attestation de provenance décrite ci-dessous, pas une
+signature Windows. Les mises à jour automatiques, elles, sont vérifiées par le manifeste signé
+(voir [Mises à jour](#mises-à-jour)) et ne repassent pas par SmartScreen.
+
 ## Vérifier le binaire que vous avez téléchargé
 
 Les *releases* sont construites par une CI publique, avec une attestation de provenance, et les
